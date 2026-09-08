@@ -1,6 +1,6 @@
-# Decentralized Multi-Agent Planner — Day 1 Prototype
+# Decentralized Multi-Agent Planner 
 
-A small, deterministic prototype for the multi-agent planning architecture being investigated for SIH-style decentralized AMR coordination.
+A small, deterministic prototype for the multi-agent planning architecture being investigated for decentralized AMR coordination.
 
 ## Today's scope
 
