@@ -32,8 +32,7 @@ def run(initial_state: WorldState, max_steps: int = 250) -> SimulationResult:
         result = coordinate_once(state, evaluator=evaluate)
 
         if not result.accepted:
-            # Day 1 fallback: execute the proposed legal joint action anyway only if it is the first move
-            # and is valid. Otherwise stop so the rejection is visible rather than silently looping forever.
+            # Keep the proposal in the log, but do not execute a rejected action.
             logs.append(StepLog(state.timestep, state, result))
             return SimulationResult(tuple(logs), state, False)
 

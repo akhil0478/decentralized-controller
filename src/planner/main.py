@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .simulator import run
 from .state import make_initial_state
-from .visualize import _ascii_world_impl
+from .visualize import ascii_world
 
 
 def main() -> None:
@@ -13,12 +13,12 @@ def main() -> None:
     print("=" * 54)
     print(f"Success: {result.success}")
     print(f"Timesteps: {len(result.steps)}")
-    print(f"Final stack height: {result.final_state.stack_height}/4")
+    print(f"Final stack height: {result.final_state.stack_height}/{len(state.blocks)}")
     print()
 
     for step in result.steps:
         print(f"--- timestep {step.timestep} ---")
-        print(_ascii_world_impl(step.before))
+        print(ascii_world(step.before))
         print(f"Priority: {list(step.result.priority)}")
         for decision in step.result.decisions:
             print(f"A{decision.agent_id}: {decision.chosen}")
@@ -26,7 +26,7 @@ def main() -> None:
         print()
 
     print("Final state:")
-    print(_ascii_world_impl(result.final_state))
+    print(ascii_world(result.final_state))
 
 
 if __name__ == "__main__":

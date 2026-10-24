@@ -16,7 +16,7 @@ Evaluator = Callable[[WorldState, int], Score]
 @dataclass(frozen=True)
 class DecisionRecord:
     agent_id: int
-    candidates: tuple[tuple[str, tuple[int, int, int, int]], ...]
+    candidates: tuple[tuple[str, tuple[int, int, int, int, int]], ...]
     chosen: str
 
 
@@ -55,22 +55,15 @@ def coordinate_once(state: WorldState, evaluator: Evaluator = evaluate) -> Coord
         for action in candidates:
             hypothetical = dict(committed)
             hypothetical[agent_id] = action
-            if len(hypothetical) == len(state.agents):
-                legal, _ = joint_action_legal(state, hypothetical)
-                if not legal:
-                    continue
-                candidate_state = transition(state, hypothetical)
-            else:
-                # For partial commitment, hold uncommitted agents stationary for evaluation.
-                provisional = dict(hypothetical)
-                for other in state.agents:
-                    provisional.setdefault(other.agent_id, Action("WAIT"))
-                legal, _ = joint_action_legal(state, provisional)
-                if not legal:
-                    continue
-                candidate_state = transition(state, provisional)
+            # Hold uncommitted agents stationary while evaluating partial choices.
+            provisional = {agent.agent_id: Action("WAIT") for agent in state.agents}
+            provisional.update(hypothetical)
+            legal, _ = joint_action_legal(state, provisional)
+            if not legal:
+                continue
+            candidate_state = transition(state, provisional)
 
-            score = evaluator(candidate_state, state.timestep + _movement_cost(hypothetical))
+            score = evaluator(candidate_state, _movement_cost(hypothetical))
             scored.append((action, score))
 
         if not scored:
@@ -101,10 +94,10 @@ def coordinate_once(state: WorldState, evaluator: Evaluator = evaluate) -> Coord
         communications.append(f"DECISION_BROADCAST agent={agent_id} action={chosen.kind}")
 
     next_state = transition(state, committed)
-    score = evaluator(next_state, state.timestep + _movement_cost(committed))
-    accepted = score.as_tuple() >= evaluator(state, state.timestep).as_tuple() or next_state.goal_reached
-    reason = None if accepted else "Global score did not improve"
-    communications.append(f"VERIFIER score={score.scalar():.1f} accepted={accepted}")
+    score = evaluator(next_state, _movement_cost(committed))
+    accepted = score.as_tuple() >= evaluator(state, 0).as_tuple() or next_state.goal_reached
+    reason = None if accepted else "Global score decreased"
+    communications.append(f"VERIFIER score={score.as_tuple()} accepted={accepted}")
 
     return CoordinationResult(
         actions=committed,

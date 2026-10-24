@@ -1,43 +1,16 @@
 from __future__ import annotations
 
+from .constants import GRID_SIZE
 from .state import BlockStatus, WorldState
 
 
 def ascii_world(state: WorldState) -> str:
-    cells = {}
-    for agent in state.agents:
-        cells[agent.position] = f"A{agent.agent_id}"
-
-    # Source and destination are shown unless occupied by an agent.
-    for y in range(1, 8):
-        row = []
-        for x in range(1, 8):
-            p = (x, y)
-            if p in cells:
-                token = cells[p]
-            elif p in state.obstacles:
-                token = "##"
-            elif p == state.source:
-                source_count = sum(b.status == BlockStatus.SOURCE for b in state.blocks)
-                token = f"S{source_count}"
-            elif p == state.destination:
-                token = f"D{state.stack_height}"
-            else:
-                token = ".."
-            row.append(f"{token:>3}")
-        yield_line = " ".join(row)
-        if y == 1:
-            pass
-        # collect via local list impossible with generator, so this helper is not a generator
-    return _ascii_world_impl(state)
-
-
-def _ascii_world_impl(state: WorldState) -> str:
+    """Render the current world, showing agents over their underlying cells."""
     cells = {a.position: f"A{a.agent_id}" for a in state.agents}
     lines = []
-    for y in range(1, 8):
+    for y in range(1, GRID_SIZE + 1):
         row = []
-        for x in range(1, 8):
+        for x in range(1, GRID_SIZE + 1):
             p = (x, y)
             if p in cells:
                 token = cells[p]
@@ -59,7 +32,7 @@ def animate(result, interval: float = 0.35):
     from matplotlib.animation import FuncAnimation
 
     states = [result.steps[0].before] if result.steps else [result.final_state]
-    states.extend(step.result.next_state for step in result.steps)
+    states.extend(step.result.next_state for step in result.steps if step.result.accepted)
 
     fig, ax = plt.subplots(figsize=(6, 6))
     ax.set_xlim(0.5, 7.5)
