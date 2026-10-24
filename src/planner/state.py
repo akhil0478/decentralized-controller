@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Optional, Tuple
+from dataclasses import dataclass, field, replace
+from enum import StrEnum
 
-from .constants import AGENT_COUNT, BLOCK_COUNT, DESTINATION, GRID_SIZE, SOURCE
+from .constants import BLOCK_COUNT, DESTINATION, GRID_SIZE, SOURCE
 
-Position = Tuple[int, int]
-Velocity = Tuple[int, int]
+Position = tuple[int, int]
+Velocity = tuple[int, int]
 
 
-class BlockStatus(str, Enum):
+class BlockStatus(StrEnum):
     SOURCE = "SOURCE"
     CARRIED = "CARRIED"
     STACKED = "STACKED"
@@ -21,7 +20,7 @@ class AgentState:
     agent_id: int
     position: Position
     velocity: Velocity = (0, 0)
-    carrying: Optional[int] = None
+    carrying: int | None = None
 
     @property
     def has_block(self) -> bool:
@@ -32,26 +31,35 @@ class AgentState:
 class BlockState:
     block_id: int
     status: BlockStatus = BlockStatus.SOURCE
-    carrier: Optional[int] = None
-    stack_level: Optional[int] = None
+    carrier: int | None = None
+    stack_level: int | None = None
 
 
 @dataclass(frozen=True)
 class WorldState:
-    agents: Tuple[AgentState, ...]
-    blocks: Tuple[BlockState, ...]
+    agents: tuple[AgentState, ...]
+    blocks: tuple[BlockState, ...]
     stack_height: int = 0
     timestep: int = 0
     source: Position = SOURCE
     destination: Position = DESTINATION
     obstacles: frozenset[Position] = field(default_factory=frozenset)
+    grid_size: int = GRID_SIZE
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "agents", tuple(self.agents))
         object.__setattr__(self, "blocks", tuple(self.blocks))
         object.__setattr__(self, "obstacles", frozenset(self.obstacles))
-        if self.timestep < 0 or self.stack_height < 0:
-            raise ValueError("Timestep and stack height must be nonnegative")
+        if type(self.grid_size) is not int or self.grid_size < 2:
+            raise ValueError("Grid size must be an integer of at least 2")
+        if not self.agents:
+            raise ValueError("At least one agent is required")
+        if any(type(a.agent_id) is not int for a in self.agents):
+            raise ValueError("Agent IDs must be integers")
+        if any(type(b.block_id) is not int for b in self.blocks):
+            raise ValueError("Block IDs must be integers")
+        if any(type(v) is not int or v < 0 for v in (self.timestep, self.stack_height)):
+            raise ValueError("Timestep and stack height must be nonnegative integers")
         if len({a.agent_id for a in self.agents}) != len(self.agents):
             raise ValueError("Agent IDs must be unique")
         if len({b.block_id for b in self.blocks}) != len(self.blocks):
@@ -61,8 +69,11 @@ class WorldState:
         if len(set(positions)) != len(positions):
             raise ValueError("Agents cannot share a cell")
         for position in [self.source, self.destination, *positions, *self.obstacles]:
-            if (len(position) != 2 or any(type(v) is not int for v in position)
-                    or not all(1 <= v <= GRID_SIZE for v in position)):
+            if (
+                len(position) != 2
+                or any(type(v) is not int for v in position)
+                or not all(1 <= v <= self.grid_size for v in position)
+            ):
                 raise ValueError(f"Position outside the grid: {position}")
         if self.source == self.destination:
             raise ValueError("Source and destination must be different")
@@ -78,10 +89,18 @@ class WorldState:
                     raise ValueError("Source blocks cannot have a carrier or stack level")
             elif block.status == BlockStatus.CARRIED:
                 carrier = agents.get(block.carrier)
-                if carrier is None or carrier.carrying != block.block_id or block.stack_level is not None:
+                if (
+                    carrier is None
+                    or carrier.carrying != block.block_id
+                    or block.stack_level is not None
+                ):
                     raise ValueError("Carried block must match its carrier")
             elif block.status == BlockStatus.STACKED:
-                if block.carrier is not None or block.stack_level is None:
+                if (
+                    block.carrier is not None
+                    or type(block.stack_level) is not int
+                    or block.stack_level <= 0
+                ):
                     raise ValueError("Stacked blocks require a stack level and no carrier")
                 levels.append(block.stack_level)
             else:
@@ -91,7 +110,11 @@ class WorldState:
         for agent in self.agents:
             if agent.has_block:
                 block = blocks.get(agent.carrying)
-                if block is None or block.status != BlockStatus.CARRIED or block.carrier != agent.agent_id:
+                if (
+                    block is None
+                    or block.status != BlockStatus.CARRIED
+                    or block.carrier != agent.agent_id
+                ):
                     raise ValueError("Agent carrying state must match its block")
 
     def agent(self, agent_id: int) -> AgentState:
@@ -106,25 +129,23 @@ class WorldState:
                 return block
         raise KeyError(f"Unknown block {block_id}")
 
-    def carried_block_id(self, agent_id: int) -> Optional[int]:
+    def carried_block_id(self, agent_id: int) -> int | None:
         return self.agent(agent_id).carrying
 
     def with_updates(
         self,
         *,
-        agents: Optional[Tuple[AgentState, ...]] = None,
-        blocks: Optional[Tuple[BlockState, ...]] = None,
-        stack_height: Optional[int] = None,
-        timestep: Optional[int] = None,
-    ) -> "WorldState":
-        return WorldState(
+        agents: tuple[AgentState, ...] | None = None,
+        blocks: tuple[BlockState, ...] | None = None,
+        stack_height: int | None = None,
+        timestep: int | None = None,
+    ) -> WorldState:
+        return replace(
+            self,
             agents=self.agents if agents is None else agents,
             blocks=self.blocks if blocks is None else blocks,
             stack_height=self.stack_height if stack_height is None else stack_height,
             timestep=self.timestep if timestep is None else timestep,
-            source=self.source,
-            destination=self.destination,
-            obstacles=self.obstacles,
         )
 
     @property
@@ -133,22 +154,31 @@ class WorldState:
 
 
 def make_initial_state(
-    agent_positions: Tuple[Position, ...] = ((1, 1), (7, 7), (4, 4)),
-    source: Position = SOURCE,
-    destination: Position = DESTINATION,
+    agent_positions: tuple[Position, ...] | None = None,
+    source: Position | None = None,
+    destination: Position | None = None,
     obstacles: frozenset[Position] = frozenset(),
+    *,
+    grid_size: int = GRID_SIZE,
+    block_count: int = BLOCK_COUNT,
 ) -> WorldState:
-    if len(agent_positions) != AGENT_COUNT:
-        raise ValueError("The Day 1 prototype uses exactly 3 agents.")
+    """Build a validated scenario, retaining the original demo defaults."""
+    if type(grid_size) is not int or grid_size < 2:
+        raise ValueError("Grid size must be an integer of at least 2")
+    if type(block_count) is not int or block_count < 0:
+        raise ValueError("Block count must be a nonnegative integer")
+    if agent_positions is None:
+        center = (grid_size + 1) // 2
+        agent_positions = tuple(dict.fromkeys(((1, 1), (grid_size, grid_size), (center, center))))
     agents = tuple(
-        AgentState(agent_id=i + 1, position=pos)
-        for i, pos in enumerate(agent_positions)
+        AgentState(agent_id=i + 1, position=pos) for i, pos in enumerate(agent_positions)
     )
-    blocks = tuple(BlockState(block_id=i + 1) for i in range(BLOCK_COUNT))
+    blocks = tuple(BlockState(block_id=i + 1) for i in range(block_count))
     return WorldState(
         agents=agents,
         blocks=blocks,
-        source=source,
-        destination=destination,
+        source=(1, grid_size) if source is None else source,
+        destination=(grid_size, 1) if destination is None else destination,
         obstacles=obstacles,
+        grid_size=grid_size,
     )

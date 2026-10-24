@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Dict
 
 from .actions import Action, legal_actions
 from .constraints import joint_action_legal
@@ -22,7 +22,7 @@ class DecisionRecord:
 
 @dataclass(frozen=True)
 class CoordinationResult:
-    actions: Dict[int, Action]
+    actions: dict[int, Action]
     decisions: tuple[DecisionRecord, ...]
     priority: tuple[int, ...]
     next_state: WorldState
@@ -32,13 +32,13 @@ class CoordinationResult:
     communication_events: tuple[str, ...]
 
 
-def _movement_cost(actions: Dict[int, Action]) -> int:
+def _movement_cost(actions: dict[int, Action]) -> int:
     return sum(1 for action in actions.values() if action.kind in {"UP", "DOWN", "LEFT", "RIGHT"})
 
 
 def coordinate_once(state: WorldState, evaluator: Evaluator = evaluate) -> CoordinationResult:
     priority = tuple(build_priority(state))
-    committed: Dict[int, Action] = {}
+    committed: dict[int, Action] = {}
     decisions: list[DecisionRecord] = []
     communications: list[str] = [
         f"STATE_BROADCAST agents={len(state.agents)} timestep={state.timestep}",

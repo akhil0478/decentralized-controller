@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
-from .constants import GRID_SIZE, MOVE_DELTAS
+from .constants import MOVE_DELTAS
 from .state import BlockStatus, Position, WorldState
 
 
@@ -40,7 +39,9 @@ def adjacent(a: Position, b: Position) -> bool:
     return manhattan(a, b) == 1
 
 
-def legal_actions(state: WorldState, agent_id: int, committed: Optional[dict[int, Action]] = None) -> list[Action]:
+def legal_actions(
+    state: WorldState, agent_id: int, committed: dict[int, Action] | None = None
+) -> list[Action]:
     """Return actions legal given the current state and already committed actions."""
     committed = committed or {}
     agent = state.agent(agent_id)
@@ -49,7 +50,7 @@ def legal_actions(state: WorldState, agent_id: int, committed: Optional[dict[int
     for action in all_actions():
         if action.kind in MOVE_DELTAS:
             new_pos = (agent.position[0] + action.delta[0], agent.position[1] + action.delta[1])
-            if not (1 <= new_pos[0] <= GRID_SIZE and 1 <= new_pos[1] <= GRID_SIZE):
+            if not all(1 <= v <= state.grid_size for v in new_pos):
                 continue
             if new_pos in state.obstacles:
                 continue
@@ -62,7 +63,11 @@ def legal_actions(state: WorldState, agent_id: int, committed: Optional[dict[int
                     committed_pos = predicted_position(other.position, committed[other.agent_id])
                     if new_pos == committed_pos:
                         illegal = True
-                    if new_pos == other.position and committed[other.agent_id].kind in MOVE_DELTAS and committed_pos == agent.position:
+                    if (
+                        new_pos == other.position
+                        and committed[other.agent_id].kind in MOVE_DELTAS
+                        and committed_pos == agent.position
+                    ):
                         illegal = True
                 else:
                     # If the other agent has not yet committed, don't enter its current cell.

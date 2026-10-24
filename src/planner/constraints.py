@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from .actions import Action, adjacent, predicted_position
-from .constants import GRID_SIZE
 from .state import BlockStatus, WorldState
 
 
@@ -16,7 +15,7 @@ def joint_action_legal(state: WorldState, actions: dict[int, Action]) -> tuple[b
     for agent in state.agents:
         action = actions[agent.agent_id]
         position = predicted_position(agent.position, action)
-        if not all(1 <= v <= GRID_SIZE for v in position):
+        if not all(1 <= v <= state.grid_size for v in position):
             return False, f"Agent {agent.agent_id} moves outside the grid"
         if position in state.obstacles:
             return False, f"Agent {agent.agent_id} enters an obstacle"
@@ -39,8 +38,10 @@ def joint_action_legal(state: WorldState, actions: dict[int, Action]) -> tuple[b
     ids = sorted(ids)
     for idx, i in enumerate(ids):
         for j in ids[idx + 1 :]:
-            if next_positions[i] == state.agent(j).position and next_positions[j] == state.agent(i).position:
-                if next_positions[i] != state.agent(i).position or next_positions[j] != state.agent(j).position:
-                    return False, "Agents swap cells in the same timestep"
+            if (
+                next_positions[i] == state.agent(j).position
+                and next_positions[j] == state.agent(i).position
+            ):
+                return False, "Agents swap cells in the same timestep"
 
     return True, "legal"

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import replace
 import unittest
+from dataclasses import replace
 
 from src.planner.actions import Action, legal_actions
 from src.planner.constraints import joint_action_legal
@@ -23,7 +23,12 @@ class ActionSafetyTests(unittest.TestCase):
         self.assertEqual(Action("WAIT").delta, (0, 0))
 
     def test_unknown_and_mismatched_actions_are_rejected(self):
-        for kind, delta in [("TELEPORT", None), ("UP", (0, 1)), ("WAIT", (1, 0)), ("PICKUP", (1, 0))]:
+        for kind, delta in [
+            ("TELEPORT", None),
+            ("UP", (0, 1)),
+            ("WAIT", (1, 0)),
+            ("PICKUP", (1, 0)),
+        ]:
             with self.subTest(kind=kind), self.assertRaises(ValueError):
                 Action(kind, delta)
 
@@ -75,11 +80,14 @@ class ActionSafetyTests(unittest.TestCase):
         carrying = transition(state, actions)
         self.assertEqual(carrying, transition(state, dict(reversed(list(actions.items())))))
         self.assertEqual([a.carrying for a in carrying.agents], [1, 2, None])
-        delivery = replace(carrying, agents=(
-            replace(carrying.agent(1), position=(6, 1)),
-            replace(carrying.agent(2), position=(7, 2)),
-            carrying.agent(3),
-        ))
+        delivery = replace(
+            carrying,
+            agents=(
+                replace(carrying.agent(1), position=(6, 1)),
+                replace(carrying.agent(2), position=(7, 2)),
+                carrying.agent(3),
+            ),
+        )
         drops = joint_actions({1: Action("DROP"), 2: Action("DROP")})
         stacked = transition(delivery, drops)
         self.assertEqual(stacked, transition(delivery, dict(reversed(list(drops.items())))))
@@ -115,6 +123,10 @@ class WorldSafetyTests(unittest.TestCase):
             {"stack_height": 1},
             {"stack_height": 1, "blocks": (BlockState(1, BlockStatus.STACKED, stack_level=2),)},
             {"timestep": -1},
+            {"timestep": 0.5},
+            {"stack_height": True},
+            {"agents": (replace(state.agent(1), agent_id="1"), *state.agents[1:])},
+            {"blocks": (BlockState("1"),)},
         ]
         for kwargs in cases:
             with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):

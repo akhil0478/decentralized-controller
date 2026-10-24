@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from typing import Dict
-
 from .actions import Action, predicted_position
 from .constraints import joint_action_legal
 from .state import AgentState, BlockState, BlockStatus, WorldState
 
 
-def transition(state: WorldState, actions: Dict[int, Action]) -> WorldState:
+def transition(state: WorldState, actions: dict[int, Action]) -> WorldState:
     legal, reason = joint_action_legal(state, actions)
     if not legal:
         raise ValueError(f"Illegal joint transition: {reason}")
