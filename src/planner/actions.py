@@ -1,16 +1,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from .constants import MOVE_DELTAS
-from .state import Position, WorldState
+from .state import BlockStatus, Position, WorldState
 
 
 @dataclass(frozen=True)
 class Action:
     kind: str
-    delta: Position = (0, 0)
+    delta: Position | None = None
+
+    def __post_init__(self) -> None:
+        if self.kind not in (*MOVE_DELTAS, "PICKUP", "DROP"):
+            raise ValueError(f"Unknown action: {self.kind}")
+        expected = MOVE_DELTAS.get(self.kind, (0, 0))
+        if self.delta is not None and self.delta != expected:
+            raise ValueError(f"Action {self.kind} requires delta {expected}")
+        object.__setattr__(self, "delta", expected)
 
     def __str__(self) -> str:
         return self.kind
@@ -32,7 +39,9 @@ def adjacent(a: Position, b: Position) -> bool:
     return manhattan(a, b) == 1
 
 
-def legal_actions(state: WorldState, agent_id: int, committed: Optional[dict[int, Action]] = None) -> list[Action]:
+def legal_actions(
+    state: WorldState, agent_id: int, committed: dict[int, Action] | None = None
+) -> list[Action]:
     """Return actions legal given the current state and already committed actions."""
     committed = committed or {}
     agent = state.agent(agent_id)
@@ -41,7 +50,7 @@ def legal_actions(state: WorldState, agent_id: int, committed: Optional[dict[int
     for action in all_actions():
         if action.kind in MOVE_DELTAS:
             new_pos = (agent.position[0] + action.delta[0], agent.position[1] + action.delta[1])
-            if not (1 <= new_pos[0] <= 7 and 1 <= new_pos[1] <= 7):
+            if not all(1 <= v <= state.grid_size for v in new_pos):
                 continue
             if new_pos in state.obstacles:
                 continue
@@ -54,7 +63,11 @@ def legal_actions(state: WorldState, agent_id: int, committed: Optional[dict[int
                     committed_pos = predicted_position(other.position, committed[other.agent_id])
                     if new_pos == committed_pos:
                         illegal = True
-                    if new_pos == other.position and committed[other.agent_id].kind in MOVE_DELTAS and committed_pos == agent.position:
+                    if (
+                        new_pos == other.position
+                        and committed[other.agent_id].kind in MOVE_DELTAS
+                        and committed_pos == agent.position
+                    ):
                         illegal = True
                 else:
                     # If the other agent has not yet committed, don't enter its current cell.
@@ -67,7 +80,7 @@ def legal_actions(state: WorldState, agent_id: int, committed: Optional[dict[int
             if agent.has_block:
                 continue
             if adjacent(agent.position, state.source):
-                source_count = sum(b.status.value == "SOURCE" for b in state.blocks)
+                source_count = sum(b.status == BlockStatus.SOURCE for b in state.blocks)
                 committed_pickups = sum(a.kind == "PICKUP" for a in committed.values())
                 if source_count - committed_pickups > 0:
                     actions.append(action)
@@ -76,8 +89,7 @@ def legal_actions(state: WorldState, agent_id: int, committed: Optional[dict[int
             if not agent.has_block:
                 continue
             if adjacent(agent.position, state.destination):
-                if agent.position != state.source:
-                    actions.append(action)
+                actions.append(action)
 
     return actions
 

@@ -12,4 +12,6 @@ def priority_key(state: WorldState, agent_id: int) -> tuple[int, int, int]:
 
 
 def build_priority(state: WorldState) -> list[int]:
-    return sorted((a.agent_id for a in state.agents), key=lambda agent_id: priority_key(state, agent_id))
+    return sorted(
+        (a.agent_id for a in state.agents), key=lambda agent_id: priority_key(state, agent_id)
+    )

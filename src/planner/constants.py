@@ -4,7 +4,6 @@ GRID_SIZE = 7
 SOURCE = (1, 7)
 DESTINATION = (7, 1)
 BLOCK_COUNT = 4
-AGENT_COUNT = 3
 
 MOVE_DELTAS = {
     "UP": (0, -1),
@@ -13,5 +12,3 @@ MOVE_DELTAS = {
     "RIGHT": (1, 0),
     "WAIT": (0, 0),
 }
-
-ACTION_ORDER = ("UP", "DOWN", "LEFT", "RIGHT", "WAIT", "PICKUP", "DROP")

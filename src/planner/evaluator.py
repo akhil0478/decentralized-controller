@@ -9,6 +9,7 @@ from .state import BlockStatus, WorldState
 @dataclass(frozen=True)
 class Score:
     """Global state score. Higher is better; tuple ordering is authoritative."""
+
     stack_height: int
     in_transit_blocks: int
     negative_task_distance: int
@@ -25,6 +26,7 @@ class Score:
         )
 
     def scalar(self) -> float:
+        """Weighted diagnostic display only; use as_tuple() for comparisons."""
         return (
             self.stack_height * 100000
             + self.in_transit_blocks * 10000

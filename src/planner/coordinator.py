@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Dict
 
 from .actions import Action, legal_actions
 from .constraints import joint_action_legal
@@ -16,13 +16,13 @@ Evaluator = Callable[[WorldState, int], Score]
 @dataclass(frozen=True)
 class DecisionRecord:
     agent_id: int
-    candidates: tuple[tuple[str, tuple[int, int, int, int]], ...]
+    candidates: tuple[tuple[str, tuple[int, int, int, int, int]], ...]
     chosen: str
 
 
 @dataclass(frozen=True)
 class CoordinationResult:
-    actions: Dict[int, Action]
+    actions: dict[int, Action]
     decisions: tuple[DecisionRecord, ...]
     priority: tuple[int, ...]
     next_state: WorldState
@@ -32,13 +32,13 @@ class CoordinationResult:
     communication_events: tuple[str, ...]
 
 
-def _movement_cost(actions: Dict[int, Action]) -> int:
+def _movement_cost(actions: dict[int, Action]) -> int:
     return sum(1 for action in actions.values() if action.kind in {"UP", "DOWN", "LEFT", "RIGHT"})
 
 
 def coordinate_once(state: WorldState, evaluator: Evaluator = evaluate) -> CoordinationResult:
     priority = tuple(build_priority(state))
-    committed: Dict[int, Action] = {}
+    committed: dict[int, Action] = {}
     decisions: list[DecisionRecord] = []
     communications: list[str] = [
         f"STATE_BROADCAST agents={len(state.agents)} timestep={state.timestep}",
@@ -55,22 +55,15 @@ def coordinate_once(state: WorldState, evaluator: Evaluator = evaluate) -> Coord
         for action in candidates:
             hypothetical = dict(committed)
             hypothetical[agent_id] = action
-            if len(hypothetical) == len(state.agents):
-                legal, _ = joint_action_legal(state, hypothetical)
-                if not legal:
-                    continue
-                candidate_state = transition(state, hypothetical)
-            else:
-                # For partial commitment, hold uncommitted agents stationary for evaluation.
-                provisional = dict(hypothetical)
-                for other in state.agents:
-                    provisional.setdefault(other.agent_id, Action("WAIT"))
-                legal, _ = joint_action_legal(state, provisional)
-                if not legal:
-                    continue
-                candidate_state = transition(state, provisional)
+            # Hold uncommitted agents stationary while evaluating partial choices.
+            provisional = {agent.agent_id: Action("WAIT") for agent in state.agents}
+            provisional.update(hypothetical)
+            legal, _ = joint_action_legal(state, provisional)
+            if not legal:
+                continue
+            candidate_state = transition(state, provisional)
 
-            score = evaluator(candidate_state, state.timestep + _movement_cost(hypothetical))
+            score = evaluator(candidate_state, _movement_cost(hypothetical))
             scored.append((action, score))
 
         if not scored:
@@ -101,10 +94,10 @@ def coordinate_once(state: WorldState, evaluator: Evaluator = evaluate) -> Coord
         communications.append(f"DECISION_BROADCAST agent={agent_id} action={chosen.kind}")
 
     next_state = transition(state, committed)
-    score = evaluator(next_state, state.timestep + _movement_cost(committed))
-    accepted = score.as_tuple() >= evaluator(state, state.timestep).as_tuple() or next_state.goal_reached
-    reason = None if accepted else "Global score did not improve"
-    communications.append(f"VERIFIER score={score.scalar():.1f} accepted={accepted}")
+    score = evaluator(next_state, _movement_cost(committed))
+    accepted = score.as_tuple() >= evaluator(state, 0).as_tuple() or next_state.goal_reached
+    reason = None if accepted else "Global score decreased"
+    communications.append(f"VERIFIER score={score.as_tuple()} accepted={accepted}")
 
     return CoordinationResult(
         actions=committed,
